@@ -33,6 +33,7 @@ import java.sql.Statement;
 import java.sql.Struct;
 import java.sql.Time;
 import java.sql.Timestamp;
+import java.sql.Types;
 import java.util.Calendar;
 import java.util.Map;
 import java.util.Properties;
@@ -40,6 +41,7 @@ import java.util.concurrent.Executor;
 import java.util.logging.Logger;
 
 import kx.c;
+import kx.c.Timespan;
 
 //2014.03.25 allow calling connection close() even if already closed, use jdk1.7 api
 //           jdk1.7 specific parts are sections after //1.7
@@ -89,9 +91,18 @@ public class Driver implements java.sql.Driver {
             O(e.getMessage());
         }
     }
-    static int[] SQLTYPE = { 0, 16, 0, 0, -2, 5, 4, -5, 7, 8, 0, 12, 0, 0, 91, 93, 0, 0, 0, 92 };
-    static String[] TYPE = { "", "boolean", "", "", "byte", "short", "int", "long", "real", "float", "char", "symbol",
-            "", "month", "date", "timestamp", "", "minute", "second", "time" };
+
+    static int[] SQLTYPE = {
+            0, 16, 0, 0, -2,
+            5, 4, -5, 7, 8,
+            0, 12, 93, 0, 91,
+            93, 93, 0, 0, 92 };
+
+    static String[] TYPE = {
+            "", "boolean", "", "", "byte",
+            "short", "int", "long", "real", "float",
+            "char", "symbol", "timestamp", "month", "date",
+            "datetime", "timespan", "minute", "second", "time" };
 
     static int find(String[] x, String s) {
         int i = 0;
@@ -1396,7 +1407,7 @@ public class Driver implements java.sql.Driver {
 
         public int getInt(int i) throws SQLException {
             Object x = getObject(i);
-            return x == null ? 0 : ((Long) x).intValue();
+            return x == null ? 0 : ((Integer) x).intValue();
         }
 
         public long getLong(int i) throws SQLException {
@@ -1428,7 +1439,15 @@ public class Driver implements java.sql.Driver {
         }
 
         public Timestamp getTimestamp(int i) throws SQLException {
-            return (Timestamp) getObject(i);
+            Object obj = getObject(i);
+            if (obj instanceof Timestamp) {
+                return  (Timestamp) obj;
+            } else if (obj instanceof Timespan) {
+                Timespan timespan = (Timespan) obj;
+                return timespan.toTimestamp();
+            } else {
+                return null;
+            }
         }
 
         public byte[] getBytes(int i) throws SQLException {
@@ -2220,7 +2239,19 @@ public class Driver implements java.sql.Driver {
         }
 
         public int getColumnType(int i) throws SQLException {
-            return SQLTYPE[c.t(d[i - 1])];
+            Object value = d[i - 1];
+            int type = c.t(value);
+            // Check Object[char[]]=String
+            if (type == 0 && (value instanceof Object[]) && ((Object[]) value).length > 0) {
+                Object item = ((Object[]) value)[0];
+                if (item instanceof char[]) {
+                    return Types.VARCHAR;
+                } else {
+                    return 0;
+                }
+            } else {
+                return SQLTYPE[type];
+            }
         }
 
         public int getPrecision(int i) throws SQLException {

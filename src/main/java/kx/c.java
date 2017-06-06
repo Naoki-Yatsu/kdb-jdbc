@@ -252,6 +252,19 @@ public class c {
         public int hashCode() {
             return (int) (j ^ (j >>> 32));
         }
+        
+        public Timestamp toTimestamp() {
+            TimeZone tz = TimeZone.getDefault();
+            long time = j - tz.getOffset(j) * 1000000L;
+            int nano = (int) (time % 1000000000);
+            if (nano < 0) {
+                time -= 1000000000;
+                nano += 1000000000;
+            }
+            Timestamp timestamp = new Timestamp(1000 * (time / 1000000000));
+            timestamp.setNanos(nano);
+            return timestamp;
+        }
     }
 
     public static class Dict {
